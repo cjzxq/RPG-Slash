@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Character.h"
+#include "BaseCharacter.h"//0823
 #include "CharacterType.h"//自己创建的头文件，包含了角色类型枚举，比放一个巨大的头文件要好很多
 #include "SlashCharacter.generated.h"
 
@@ -26,7 +26,7 @@ class AWeapon;//前向声明，武器类
 
 
 UCLASS()
-class SLASH_API ASlashCharacter : public ACharacter
+class SLASH_API ASlashCharacter : public ABaseCharacter
 {
 	GENERATED_BODY()
 
@@ -39,8 +39,7 @@ public:
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-	UFUNCTION(BlueprintCallable)
-	void SetWeaponCollisionEnable(ECollisionEnabled::Type CollisionEnabled);//启用武器碰撞
+
 	//UFUNCTION(BlueprintCallable)
 	//void DisableWeaponCollision();//禁用武器碰撞
 
@@ -53,13 +52,13 @@ protected:
 	void LookUp(float Value);
 	void MoveRightAndLeft(float Value);//向左和向右移动 轴映射，需要浮点型输入
 	void EkeyPressed();//E键按下事件，动作映射，不需要浮点型输入，函数是一次性的，按下E键就会调用一次这个函数
-	void Attack();//攻击函数，绑定到鼠标左键按下事件
+	virtual void Attack() override;//攻击函数，绑定到鼠标左键按下事件
 
 	// 播放蒙太奇动画
-	void PlayAttackMontage();
-	UFUNCTION(BlueprintCallable)//蓝图可调用
-	void AttackEnd();//攻击结束函数
-	bool CanAttack();//是否可以攻击的函数，判断角色状态和动作状态
+	virtual void PlayAttackMontage() override;
+	//UFUNCTION(BlueprintCallable)//蓝图可调用因为下面个函数是子类重写的，父类虚函数有UFUNCTION(BlueprintCallable)，所以这里不用
+	virtual void AttackEnd() override;//攻击结束函数
+	virtual bool CanAttack() override;//是否可以攻击的函数，判断角色状态和动作状态
 
 	void PlayEquipMontage(const FName& SectionName);//播放装备武器的蒙太奇动画
 	bool CanDisarm();//是否可以卸下武器的函数，把武器放到背上
@@ -95,13 +94,10 @@ private:
 	UPROPERTY(VisibleInstanceOnly)//在游戏世界看见这个值，在蓝图中看不见这个值
 	AItem* OverlappingItem;//如果这个变量不为nullptr，表示角色正在与一个物品重叠，可以尝试捡起来
 
-	UPROPERTY(VisibleAnywhere, Category = "Weapon")
-	AWeapon* EquippedWeapon;//当前装备的武器
+
+
 
 	//蒙太奇动画，变量
-	UPROPERTY(EditDefaultsOnly, Category = "Montages")
-	UAnimMontage* AttackMontage;//攻击动作蒙太奇
-
 	UPROPERTY(EditDefaultsOnly, Category = "Montages")
 	UAnimMontage* EquipMontage;//装备武器蒙太奇
 

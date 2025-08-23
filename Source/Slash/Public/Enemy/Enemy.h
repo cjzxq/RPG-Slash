@@ -3,21 +3,19 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Character.h"
+#include "Characters/BaseCharacter.h"
 #include "Interfaces/HitInterfaces.h" //包含接口头文件
 #include "Characters/CharacterType.h"//0816
 #include "Enemy.generated.h"
 
-class UAttributeComponents;//0812
 //class UWidgetComponent;//再ue中创建的WidgetComoonent类 UE自带的类，不需要向上一个需要创建AttributeComponents.h才能用
 class UHealthBarComponent;
-class UAnimMontage;//前向声明，动画蒙太奇类
 class UPawnSensingComponent;//0821
 
  //继承接口,多重继承时，接口类必须在最后一个继承 AEnemy 继承了接口 IHitInterfaces，那么我们可以把它当成一个 IHitInterfaces 类型来看待（通过指针或引用），因为它满足接口的所有条件
 
 UCLASS()
-class SLASH_API AEnemy : public ACharacter, public IHitInterfaces
+class SLASH_API AEnemy : public ABaseCharacter
 {
 	GENERATED_BODY()
 
@@ -33,31 +31,24 @@ public:
 
 	//接口中的纯虚函数修改了    蓝图原生事件内部生成
 	virtual void GetHit_Implementation(const FVector& ImpactPoint) override;
-	void DirectionalHitReact(const FVector& ImpactPoint);
+
 	//0808 在敌人击中时调用这个函数
 	//伤害敌人
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
+	virtual void Destroyed() override;
 
 private:
-	//组件
-	 UPROPERTY(VisibleAnywhere)
-	 UAttributeComponents* Attributes;//用了一个未定义的类型，需要前向声明0812
+
+	 //组件
 	 UPROPERTY(VisibleAnywhere)
 	 UHealthBarComponent* HealthBarWidget;
 	 UPROPERTY(VisibleAnywhere)
 	 UPawnSensingComponent* PawnSensing;//需要创建默认子类对象构建它
 
+	 UPROPERTY(EditAnywhere)
+	 TSubclassOf<class AWeapon>WeaponClass;//用这个来生成武器，蓝图添加变量
+
 	//蒙太奇动画，变量
-	UPROPERTY(EditDefaultsOnly, Category = "Montages")
-	UAnimMontage* HitReactMontage;//攻击动作蒙太奇0808
-
-	UPROPERTY(EditDefaultsOnly, Category = "Montages")
-	UAnimMontage* DeathMontage;//死亡蒙太奇动画0816
-
-	UPROPERTY(EditAnywhere, Category = "Sounds")
-	USoundBase* HitSound;//敌人被击中时播放的声音0809 去GitHit()中使用 HitSound在蓝图中设置，
-	UPROPERTY(EditAnywhere, Category = "VisualEffects")
-	UParticleSystem* HitParticles;//敌人被击中时显示的粒子  HitParticles在蓝图中设置
 	UPROPERTY()
 	AActor* CombatTarget;//设置打中敌人的角色，后续敌人对觉角色做出反应
 
@@ -95,9 +86,9 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
+
 	// 播放蒙太奇动画
-	void PlayHitReactMontage(const FName& SectionName);
-	void Die();//0816
+	virtual void Die() override;//0816
 	bool InTargetRange(AActor* Target, double Radius);//这个函数根据指定的半径判断我们是否在目标范围内，是则返回true
 	void MoveToTarget(AActor* Target);
 

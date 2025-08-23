@@ -16,6 +16,10 @@ AItem::AItem()
 
 	//创建一个新的静态网格组件子对象，这个函数会返回一个指向新创建的组件的指针，并将其赋值给ItemMesh成员变量
 	ItemMesh=CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ItemMeshComponent"));//创建一个静态网格组件子对象，名称为ItemMeshComponent,
+	//下面2行是添加敌人武器时添加的，因为敌人的武器和敌人碰撞出了问题0823
+	ItemMesh->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
+	ItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
 
 	RootComponent = ItemMesh;//将ItemMesh组件设置为根组件，这样它就会成为这个Actor的根组件
 

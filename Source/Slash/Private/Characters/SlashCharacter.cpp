@@ -75,15 +75,6 @@ void ASlashCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 	PlayerInputComponent->BindAction(FName("Attack"), IE_Pressed, this, &ASlashCharacter::Attack);
 }
 
-void ASlashCharacter::SetWeaponCollisionEnable(ECollisionEnabled::Type CollisionEnabled)
-{
-	if (EquippedWeapon && EquippedWeapon->GetWeaponBox())
-	{
-		EquippedWeapon->GetWeaponBox()->SetCollisionEnabled(CollisionEnabled);//武器的碰撞启用状态 访问指针 在蓝图中设置武器的碰撞启用状态0807
-		EquippedWeapon->IgnoreActors.Empty();//清空数组并丢弃所有指针0808 解决盒子与一个角色反复重叠多次调用GetHit
-	}
-}
-
 // 需要绑定到轴映射
 void ASlashCharacter::MoveForward(float Value)
 {
