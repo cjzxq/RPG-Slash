@@ -35,5 +35,7 @@ void USlashAnimInstance::NativeUpdateAnimation(float DeltaTime)
 		GroundSpeed = UKismetMathLibrary::VSizeXY(SlashCharacterMovement->Velocity);//地面速度，
 		IsFalling = SlashCharacterMovement->IsFalling(); // 是否在空中
 		CharacterState = SlashCharacter->GetCharacterState(); // 获取角色状态
+		ActionState = SlashCharacter->GetActionState();//这个变量会出现在动画蓝图里
+		DeathPose = SlashCharacter->GetDeathPose();//有了变量，就能在动画蓝图中使用检查它
 	}
 }

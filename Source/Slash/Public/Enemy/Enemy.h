@@ -18,46 +18,75 @@ UCLASS()
 class SLASH_API AEnemy : public ABaseCharacter
 {
 	GENERATED_BODY()
-
 public:
-	// Sets default values for this character's properties
 	AEnemy();
-	// Called every frame
+	//AActor
 	virtual void Tick(float DeltaTime) override;
-	void CheckPatrolTarget();
-	void CheckCombatTarget();
-	// Called to bind functionality to input
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-
-	//接口中的纯虚函数修改了    蓝图原生事件内部生成
-	virtual void GetHit_Implementation(const FVector& ImpactPoint) override;
-
 	//0808 在敌人击中时调用这个函数
-	//伤害敌人
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 	virtual void Destroyed() override;
+	//AActor
+
+	//IHitInterfaces
+	virtual void GetHit_Implementation(const FVector& ImpactPoint,AActor* Hitter) override;	//接口中的纯虚函数修改了    蓝图原生事件内部生成
+	//IHitInterfaces
+
+protected:
+	// Called when the game starts or when spawned
+	virtual void BeginPlay() override;
+	//<ABaseCharacter>
+	virtual void Die() override;//0816
+	//<ABaseCharacter>
+	//然后用枚举名字创建变量0816
+	virtual void Attack() override;
+	virtual bool CanAttack() override;
+	virtual void HandleDamage(float DamageAmount) override;
+	virtual void AttackEnd() override;
+
+	UPROPERTY(BlueprintReadOnly)
+	EEnemyState EnemyState = EEnemyState::EES_Patrolling;//默认为巡逻状态
+
 
 private:
-
-	 //组件
-	 UPROPERTY(VisibleAnywhere)
-	 UHealthBarComponent* HealthBarWidget;
-	 UPROPERTY(VisibleAnywhere)
-	 UPawnSensingComponent* PawnSensing;//需要创建默认子类对象构建它
-
-	 UPROPERTY(EditAnywhere)
-	 TSubclassOf<class AWeapon>WeaponClass;//用这个来生成武器，蓝图添加变量
+	//AI行为
+	void InitializeEnemy();
+	void CheckPatrolTarget();
+	void CheckCombatTarget();
+	void PatrolTimerFinished();//每当巡逻定时器结束，执行这个回调函数
+	void HideHealthBar();
+	void ShowHealthBar();
+	void LoseInterest();
+	void StartPatrolling();
+	void ChaseTarget();
+	bool IsOutsideCombatRadius();
+	bool IsOutsideAttackRadius();
+	bool IsInsideAttackRadius();
+	bool IsChasing();
+	bool IsAttacking();
+	bool IsDead();
+	bool IsEngaged();
+	void ClearPatrolTimer();
+	void StartAttackTimer();//函数将启动计时器
+	void ClearAttackTimer();
+	bool InTargetRange(AActor* Target, double Radius);//这个函数根据指定的半径判断我们是否在目标范围内，是则返回true
+	void MoveToTarget(AActor* Target);
+	void SpawnDefaultWeapon();
+	AActor* ChoosePatrolTarget();//
+	UFUNCTION()
+	void PawnSeen(APawn* SeenPawn);//
+	//组件
+	UPROPERTY(VisibleAnywhere)
+	UHealthBarComponent* HealthBarWidget;
+	UPROPERTY(VisibleAnywhere)
+	UPawnSensingComponent* PawnSensing;//需要创建默认子类对象构建它
+	UPROPERTY(EditAnywhere)
+	TSubclassOf<class AWeapon>WeaponClass;//用这个来生成武器，蓝图添加变量
 
 	//蒙太奇动画，变量
-	UPROPERTY()
-	AActor* CombatTarget;//设置打中敌人的角色，后续敌人对觉角色做出反应
-
 	UPROPERTY(EditAnywhere)//0817
-	double CombatRadius=500.f;
-
+	double CombatRadius = 500.f;
 	UPROPERTY(EditAnywhere)//0821
 	double AttackRadius = 150.f;//如果在125距离内，敌人开始攻击
-
 
 	//Navigation敌人巡航
 	UPROPERTY()
@@ -72,35 +101,20 @@ private:
 	UPROPERTY(EditAnywhere)//0817
 	double PatrolRadius = 200.f;//巡逻范围
 	FTimerHandle PatrolTimer;//定时巡逻，为了让定时器执行任务，需要一个回调函数0820
-	void PatrolTimerFinished();//每当巡逻定时器结束，执行这个回调函数
+
 	UPROPERTY(EditAnywhere, Category = "AI Navigation")
-	float WaitMin = 5.f;
+	float PatrolWaitMin = 3.f;
 	UPROPERTY(EditAnywhere, Category = "AI Navigation")
-	float WaitMax = 10.f;
-
-	EEnemyState EnemyState = EEnemyState::EES_Patrolling;//默认为巡逻状态
-
-
-
-protected:
-	// Called when the game starts or when spawned
-	virtual void BeginPlay() override;
-
-
-	// 播放蒙太奇动画
-	virtual void Die() override;//0816
-	bool InTargetRange(AActor* Target, double Radius);//这个函数根据指定的半径判断我们是否在目标范围内，是则返回true
-	void MoveToTarget(AActor* Target);
-
-	//需要将它绑定到一个委托，
-	UFUNCTION()
-	void PawnSeen(APawn* SeenPawn);//
-	//然后用枚举名字创建变量0816
-	UPROPERTY(BlueprintReadOnly)
-	EDeathPose DeathPose = EDeathPose::EDP_Alive;//敌人最开始是活的，可以再敌人死亡时设置
-	AActor* ChoosePatrolTarget();//
-
-public:	
-
-
+	float PatrolWaitMax = 5.f;
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	float PatrollingSpeed = 125.f;
+	FTimerHandle AttackTimer;
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	float AttackMin = 0.5f;
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	float AttackMax = 1.f;
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	float ChasingSpeed = 300.f;
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	float DeathLifeSpan = 3.f;
 };

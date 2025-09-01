@@ -13,9 +13,10 @@ class UGroomComponent;//前向声明，角色的毛发
 class AItem;//前向声明，物品类
 class UAnimMontage;//前向声明，动画蒙太奇类
 class AWeapon;//前向声明，武器类
+class USlashOverlay;
 
 //以下是c++的枚举类型定义
-//enum CharacterState
+//enum CharacterState 
 //{
 //	Unequipped,
 //	EquippedOneHandWeapon,
@@ -35,9 +36,12 @@ public:
 	ASlashCharacter();
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
-
+	virtual void GetHit_Implementation(const FVector& ImpactPoint,AActor* Hitter) override;
+	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	//因为角色血条归0后不能移动却可以跳跃，因为跳跃用的是库函数，没有设置状态
+	virtual void Jump() override;
 
 
 	//UFUNCTION(BlueprintCallable)
@@ -55,25 +59,33 @@ protected:
 	virtual void Attack() override;//攻击函数，绑定到鼠标左键按下事件
 
 	// 播放蒙太奇动画
-	virtual void PlayAttackMontage() override;
 	//UFUNCTION(BlueprintCallable)//蓝图可调用因为下面个函数是子类重写的，父类虚函数有UFUNCTION(BlueprintCallable)，所以这里不用
+	void EquipWeapon(AWeapon* Weapon);
 	virtual void AttackEnd() override;//攻击结束函数
 	virtual bool CanAttack() override;//是否可以攻击的函数，判断角色状态和动作状态
+	virtual void Die() override;
 
 	void PlayEquipMontage(const FName& SectionName);//播放装备武器的蒙太奇动画
 	bool CanDisarm();//是否可以卸下武器的函数，把武器放到背上
 	bool CanArm();//把武器从背上拿到手里
+	void Disarm();
+	void Arm();
 
 	UFUNCTION(BlueprintCallable)//蓝图可调用
-	void Disarm();	//解除武器，把武器从手上卸下，放到背上
+	void AttachWeaponToBack();	//解除武器，把武器从手上卸下，放到背上
 
 	UFUNCTION(BlueprintCallable)
-	void Arm();	//装备武器，把武器从背上拿到手里
+	void AttachWeaponToHand();	//装备武器，把武器从背上拿到手里
 
 	UFUNCTION(BlueprintCallable)
 	void FinishEquipping();//完成装备武器的函数，设置动作状态为空闲
 
+	UFUNCTION(BlueprintCallable)
+	void HitRecatEnd();
 private:
+	bool IsUnoccupied();
+	void InitializeSlashOverlay();
+	void SetHUDHealth();
 
 	ECharacterState CharacterState = ECharacterState::ECS_Unequipped;//角色状态，初始状态为未装备 
 	UPROPERTY(BlueprintReadWrite,Meta=(AllowPrivateAccess="true")) //无法直接将私有变量设为蓝图读写，除非给他加个Meta指定符，允许蓝图读写这个变量
@@ -94,6 +106,8 @@ private:
 	UPROPERTY(VisibleInstanceOnly)//在游戏世界看见这个值，在蓝图中看不见这个值
 	AItem* OverlappingItem;//如果这个变量不为nullptr，表示角色正在与一个物品重叠，可以尝试捡起来
 
+	UPROPERTY()
+	USlashOverlay* SlashOverlay;
 
 
 
@@ -106,5 +120,5 @@ public:
 	FORCEINLINE void SetOverlappingItem(AItem* Item) { OverlappingItem = Item; } 
 	//
 	FORCEINLINE ECharacterState GetCharacterState() const { return CharacterState; } //获取角色状态
-
+	FORCEINLINE EActionState GetActionState() const { return ActionState; }//为了在slashaniminstance中设置状态
 };

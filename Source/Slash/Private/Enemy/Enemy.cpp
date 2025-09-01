@@ -4,10 +4,6 @@
 //想造成伤害时，可以使用U Gameplay Static的应用功能并传入相关信息
 #include "Enemy/Enemy.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "Components/CapsuleComponent.h"
-#include "Slash/DebugMacors.h"
-#include "Kismet/KismetSystemLibrary.h"
-#include "Kismet/GameplayStatics.h"
 #include "Components/AttributeComponents.h"//自己创建的，与.h中的前向声明对应
 #include "Components/WidgetComponent.h"//UE自带的类。查文档知道还需要包含UMG才能使用
 #include "Perception/PawnSensingComponent.h"//0821
@@ -30,7 +26,7 @@ AEnemy::AEnemy()
 	GetMesh()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore); //相机碰到敌人时忽略敌人，
 	//让网格体能产生重叠事件
 	GetMesh()->SetGenerateOverlapEvents(true);
-	GetCapsuleComponent()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
+
 
 
 	HealthBarWidget = CreateDefaultSubobject<UHealthBarComponent>(TEXT("HealthBarWidget"));
@@ -53,16 +49,106 @@ void AEnemy::PatrolTimerFinished()//设置了定时器，时间一到，就调�
 	MoveToTarget(PatrolTarget);
 }
 
-// Called when the game starts or when spawned
-void AEnemy::BeginPlay()
+void AEnemy::HideHealthBar()
 {
-	Super::BeginPlay();
-	//不是一直都需要看见血条0817
 	if (HealthBarWidget)
 	{
 		HealthBarWidget->SetVisibility(false);
 	}
+}
 
+void AEnemy::ShowHealthBar()
+{
+	if (HealthBarWidget)
+	{
+		HealthBarWidget->SetVisibility(true);
+	}
+}
+
+void AEnemy::LoseInterest()
+{
+	CombatTarget = nullptr;
+	HideHealthBar();
+}
+
+void AEnemy::StartPatrolling()
+{
+	EnemyState = EEnemyState::EES_Patrolling;
+	GetCharacterMovement()->MaxWalkSpeed = PatrollingSpeed;
+	MoveToTarget(PatrolTarget);
+}
+
+void AEnemy::ChaseTarget()
+{
+	EnemyState = EEnemyState::EES_Chasing;
+	GetCharacterMovement()->MaxWalkSpeed = ChasingSpeed;
+	MoveToTarget(CombatTarget);
+}
+
+bool AEnemy::IsOutsideCombatRadius()
+{
+	return !InTargetRange(CombatTarget, CombatRadius);
+}
+
+bool AEnemy::IsOutsideAttackRadius()
+{
+	return !InTargetRange(CombatTarget, AttackRadius);
+}
+
+bool AEnemy::IsInsideAttackRadius()
+{
+	return InTargetRange(CombatTarget, AttackRadius);
+}
+
+bool AEnemy::IsChasing()
+{
+	return EnemyState == EEnemyState::EES_Chasing;
+}
+
+bool AEnemy::IsAttacking()
+{
+	return EnemyState == EEnemyState::EES_Attacking;
+}
+
+bool AEnemy::IsDead()
+{
+	return EnemyState==EEnemyState::EES_Dead;
+}
+
+bool AEnemy::IsEngaged()
+{
+	return  EnemyState == EEnemyState::EES_Engaged;
+}
+
+void AEnemy::ClearPatrolTimer()
+{
+	GetWorldTimerManager().ClearTimer(PatrolTimer);//不希望计时器追逐时触发
+}
+
+void AEnemy::ClearAttackTimer()
+{
+	GetWorldTimerManager().ClearTimer(AttackTimer);//不希望计时器时触发
+}
+
+void AEnemy::StartAttackTimer()
+{
+	EnemyState = EEnemyState::EES_Attacking;
+	const float AttackTime=FMath::RandRange(AttackMin,AttackMax);
+	//计时器结束，触发敌人攻击
+	GetWorldTimerManager().SetTimer(AttackTimer, this, &AEnemy::Attack, AttackTime);
+}
+
+// Called when the game starts or when spawned
+void AEnemy::BeginPlay()
+{
+	Super::BeginPlay();
+	//绑定回调函数
+	if (PawnSensing)
+	{
+		PawnSensing->OnSeePawn.AddDynamic(this, &AEnemy::PawnSeen);//
+	}
+	InitializeEnemy(); 
+	Tags.Add(FName("Enemy"));//创建标签，被敌人查询0821 在Enemy.cpp中
 	//if (EnemyContorller && PatrolTarget)
 	//{
 	//	FAIMoveRequest MoveRequest;
@@ -78,76 +164,40 @@ void AEnemy::BeginPlay()
 	//		DrawDebugSphere(GetWorld(), Location, 12.f, 12, FColor::Green, false, 10.f);
 	//	}
 	//}
-			//需包含AIModule和一个头文件AIController.h
-	    EnemyContorller = Cast<AAIController>(GetController());
-		MoveToTarget(PatrolTarget);
-		//绑定回调函数
-		if (PawnSensing)
-		{
-			PawnSensing->OnSeePawn.AddDynamic(this, &AEnemy::PawnSeen);//
-		}
-	    //0823 生成武器
-		UWorld* World = GetWorld();
-		if (World&& WeaponClass)
-		{
-			AWeapon*DefalultWeapon = World->SpawnActor<AWeapon>(WeaponClass);
-			DefalultWeapon->Equip(GetMesh(), FName("RightHandSocket"), this, this);//装备武器到右手插槽
-			EquippedWeapon = DefalultWeapon;
-		}
 }
-
-
+void AEnemy::SpawnDefaultWeapon()
+{
+	UWorld* World = GetWorld();
+	if (World && WeaponClass)
+	{
+		AWeapon* DefalultWeapon = World->SpawnActor<AWeapon>(WeaponClass);
+		DefalultWeapon->Equip(GetMesh(), FName("RightHandSocket"), this, this);//装备武器到右手插槽
+		EquippedWeapon = DefalultWeapon;
+	}
+}
+void AEnemy::InitializeEnemy()
+{
+	//需包含AIModule和一个头文件AIController.h
+	EnemyContorller = Cast<AAIController>(GetController());//后面的都基于它，把它放在最前面
+	MoveToTarget(PatrolTarget);
+	HideHealthBar();
+	//0823 生成武器
+	SpawnDefaultWeapon();
+}
 void AEnemy::Die()
 {
-	//播放死亡蒙太奇
-	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-	if (AnimInstance && DeathMontage)
-	{
-		AnimInstance->Montage_Play(DeathMontage);//播放装备蒙太奇
-		//播放蒙太奇哪一个部分 随机选一个0816和slashcharacter.cpp中类似
-		//但是血条消失完蒙太奇又站起来了，需要在ABP_Paladin中设置
-		const int32 Section = FMath::RandRange(0, 5);//生成0到5之间的随机整数 因为有6个动画
-		FName SectionName = FName();//生成攻击动画的名称,
-		switch (Section)
-		{
-		case 0:
-			SectionName = FName("Death1"); // 死亡动画1 把SectionName设为一个FName类型的变量 其中Attack1名字一定要与AK_AttackMontage的节名一致
-			DeathPose = EDeathPose::EDP_Death1;
-			break;
-		case 1:
-			SectionName = FName("Death1"); // 
-			DeathPose = EDeathPose::EDP_Death2;
-			break;
-		case 2:
-			SectionName = FName("Death3"); //
-			DeathPose = EDeathPose::EDP_Death3;
-			break;
-		case 3:
-			SectionName = FName("Death4"); //
-			DeathPose = EDeathPose::EDP_Death4;
-			break;
-		case 4:
-			SectionName = FName("Death5"); // 
-			DeathPose = EDeathPose::EDP_Death5;
-			break;
-		case 5:
-			SectionName = FName("Death6"); //
-			DeathPose = EDeathPose::EDP_Death6;
-			break;
-		default:
-			break;
-		}
-		AnimInstance->Montage_JumpToSection(SectionName, DeathMontage);//DeathMontage要在蓝图中设置，
-	}
-	//敌人死后，血条消失0817
-	if (HealthBarWidget)
-	{
-		HealthBarWidget->SetVisibility(false);
-	}
+	Super::Die();
+	EnemyState = EEnemyState::EES_Dead;
+	ClearAttackTimer();
+	HideHealthBar();
 	//敌人死后还有碰撞 先获取敌人胶囊组件0817
-	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	DisableCapsule();
 	//敌人死后没有消失
-	SetLifeSpan(3.f);
+	SetLifeSpan(DeathLifeSpan);
+	//解决敌人死后抽搐问题
+	GetCharacterMovement()->bOrientRotationToMovement = false;
+	//解决敌人死时武器还可以伤害到角色 当敌人死亡时，关闭武器碰撞即可
+	SetWeaponCollisionEnable(ECollisionEnabled::NoCollision);
 }
 
 bool AEnemy::InTargetRange(AActor* Target, double Radius)
@@ -165,7 +215,7 @@ void AEnemy::MoveToTarget(AActor* Target)
 	FAIMoveRequest MoveRequest;//创建一个移动请求
 	//设置移动请求参数
 	MoveRequest.SetGoalActor(Target);   //
-	MoveRequest.SetAcceptanceRadius(15.f);
+	MoveRequest.SetAcceptanceRadius(60.f);
 	EnemyContorller->MoveTo(MoveRequest);
 
 }
@@ -175,19 +225,18 @@ void AEnemy::PawnSeen(APawn* SeenPawn)//没0.5s调用一次
 {
 	//一旦看见pawn就采取行动,不要让敌人之间相互追逐攻击
 	//UE_LOG(LogTemp, Warning, TEXT("PawnSeen!"));
-	if (EnemyState == EEnemyState::EES_Chasing) return;//这样不会一直调用MoveToTarget(CombatTarget)函数
-	if (SeenPawn->ActorHasTag(FName("SlashCharacter")))//看见一个pawn,先检查它的标签
-	{
-		GetWorldTimerManager().ClearTimer(PatrolTimer);//不希望计时器追逐时触发
-		GetCharacterMovement()->MaxWalkSpeed = 300.f;
-		CombatTarget = SeenPawn;//设置战斗目标
-		if (EnemyState != EEnemyState::EES_Attacking)
+	//if (EnemyState == EEnemyState::EES_Chasing) return;//这样不会一直调用MoveToTarget(CombatTarget)函数
+		const bool bShouldChaseTarget =
+			EnemyState != EEnemyState::EES_Dead &&
+			EnemyState != EEnemyState::EES_Chasing &&
+			EnemyState < EEnemyState::EES_Attacking &&
+			SeenPawn->ActorHasTag(FName("EngageableTarget"));//看见一个pawn,先检查它的标签
+		if (bShouldChaseTarget)
 		{
-			EnemyState = EEnemyState::EES_Chasing;
-			MoveToTarget(CombatTarget);//敌人看见我们，就会跑过来
-			//UE_LOG(LogTemp, Warning, TEXT("Attack"));
+			CombatTarget = SeenPawn;//设置战斗目标
+			ClearPatrolTimer();
+			ChaseTarget();
 		}
-	}
 }
 
 AActor* AEnemy::ChoosePatrolTarget()
@@ -216,10 +265,45 @@ AActor* AEnemy::ChoosePatrolTarget()
 	return nullptr;
 }
 
+void AEnemy::Attack()
+{
+	Super::Attack();//这时战斗目标有可能是空指针
+	if (CombatTarget == nullptr) return;
+	EnemyState = EEnemyState::EES_Engaged;
+	PlayAttackMontage();
+}
+
+
+bool AEnemy::CanAttack()
+{
+	bool bCanAttack =
+		IsInsideAttackRadius() &&
+		!IsAttacking() &&
+		!IsEngaged()&&
+		!IsDead();
+	return bCanAttack;
+}
+
+void AEnemy::HandleDamage(float DamageAmount)
+{
+	Super::HandleDamage(DamageAmount);
+	if (Attributes && HealthBarWidget)
+	{
+		HealthBarWidget->SetHealthPercent(Attributes->GetHealthPercent());//设置血量
+	}
+}
+
+void AEnemy::AttackEnd()
+{
+	EnemyState = EEnemyState::EES_NoState;
+	CheckCombatTarget();
+}
+
 // Called every frame
 void AEnemy::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	if (IsDead()) return;
 	//敌人到战斗目标的距离，太远就隐藏血条0817 敌人到战斗目标的向量
 	//const double DistanceToTarget = (CombatTarget->GetActorLocation() - GetActorLocation()).Size();
 	//if (DistanceToTarget > CombatRadius)
@@ -271,104 +355,64 @@ void AEnemy::CheckPatrolTarget()
 	if (InTargetRange(PatrolTarget, PatrolRadius))
 	{
 		PatrolTarget = ChoosePatrolTarget();
-		const float WaitTime = FMath::RandRange(WaitMin, WaitMax);
+		const float WaitTime = FMath::RandRange(PatrolWaitMin, PatrolWaitMax);
 		GetWorldTimerManager().SetTimer(PatrolTimer, this, &AEnemy::PatrolTimerFinished, WaitTime);//GetWorldTimerManager()返回的是一个结构体，不是指针0821
 	}
 }
 
 void AEnemy::CheckCombatTarget()
 {
-	if (!InTargetRange(CombatTarget, CombatRadius))//如果我们有战斗目标不在范围内
+	if (IsOutsideCombatRadius())//如果我们有战斗目标不在范围内
 	{
 		//如果在战斗半径之外，敌人失去兴趣0821
-		CombatTarget = nullptr;
-		if (HealthBarWidget)
-		{
-			HealthBarWidget->SetVisibility(false);
-		}
-		EnemyState = EEnemyState::EES_Patrolling;
-		GetCharacterMovement()->MaxWalkSpeed = 125.f;
-		MoveToTarget(PatrolTarget);
+		ClearAttackTimer();
+		LoseInterest();
+		if (!IsEngaged()) StartPatrolling();	
 	}
 	//攻击范围外追逐角色 如果已经在追逐中，就要检查确保我们不是已经在追逐中
-	else if (!InTargetRange(CombatTarget, AttackRadius)&& EnemyState !=EEnemyState::EES_Chasing)
+	else if (IsOutsideAttackRadius() && !IsChasing())
 	{
+		ClearAttackTimer();
 		//攻击范围外追逐角色
-		EnemyState = EEnemyState::EES_Chasing;
-		GetCharacterMovement()->MaxWalkSpeed = 300.f;
-		MoveToTarget(CombatTarget);
+		if(!IsEngaged()) ChaseTarget();
 	}
 	//在攻击范围内
-	else if (InTargetRange(CombatTarget, AttackRadius)&&EnemyState!=EEnemyState::EES_Attacking)
+	else if (CanAttack())
 	{
-		EnemyState = EEnemyState::EES_Attacking;
-		//攻击蒙太奇
-
+		StartAttackTimer();//本来前面应该有一个关闭计时器，但启动计时器会自动重置它
 	}
 }
 
-// Called to bind functionality to input
-void AEnemy::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+//void AEnemy::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+//{
+//	Super::SetupPlayerInputComponent(PlayerInputComponent);
+//}
+
+void AEnemy::GetHit_Implementation(const FVector& ImpactPoint, AActor* Hitter)
 {
-	Super::SetupPlayerInputComponent(PlayerInputComponent);
-}
-
-void AEnemy::GetHit_Implementation(const FVector& ImpactPoint)
-{
-	//DRAW_SPHERE(ImpactPoint); //在敌人被击中时绘制一个红色的球体，半径为25，持续30秒
-	if (HealthBarWidget)
-	{
-		HealthBarWidget->SetVisibility(true);
-	}
-	//是否还有健康值，
-	if (Attributes && Attributes->IsAlive())//0816
-	{
-		DirectionalHitReact(ImpactPoint);//方向受击反应
-	}
-	else
-	{
-		//播放死亡蒙太奇,
-		Die();
-	}
-
-
-	// 想要在挥剑击中角色时只调用一次GetHit，回到OnBoxOverlap,可能是盒子与一个角色反复重叠多次调用GetHit，可以使用里面的ActorsToIgnore.Add(this); 
-
-	//要播放声音，用到GamePlayStatics,需要导入头文件 
-	if (HitSound)//HitSound需要早蓝图中设置，否则为空0809
-	{
-		UGameplayStatics::PlaySoundAtLocation(
-			this,
-			HitSound,
-			ImpactPoint
-		);
-	}
-	//显示粒子 0809
-	if (HitParticles)
-	{
-		UGameplayStatics::SpawnEmitterAtLocation(
-		GetWorld(),
-		HitParticles,
-		ImpactPoint//显示血液的地方
-		);
-	}
+	Super::GetHit_Implementation(ImpactPoint, Hitter);
+	if(!IsDead()) ShowHealthBar();
+	//在受到攻击时，应该清楚巡逻计时器
+	ClearPatrolTimer();
+	ClearAttackTimer();//敌人在播放受击动画时不应该能攻击
+	SetWeaponCollisionEnable(ECollisionEnabled::NoCollision);
+	StopAttackMontage();
 }
 
 //伤害敌人 weapon.cpp挥剑的时候
 float AEnemy::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
 	//伤害敌人时，更新健康条控件
-	if (Attributes && HealthBarWidget)
+	HandleDamage(DamageAmount);
+	if (IsInsideAttackRadius())
 	{
-		Attributes->ReciveDamage(DamageAmount);
-		HealthBarWidget->SetHealthPercent(Attributes->GetHealthPercent());//设置血量
-		
+		EnemyState = EEnemyState::EES_Attacking;
 	}
-	CombatTarget=EventInstigator->GetPawn();//0817 pawn是actor子类，可以将子类地址存储在父类指针中 后续在tick（）中
-	EnemyState = EEnemyState::EES_Chasing;
-	GetCharacterMovement()->MaxWalkSpeed = 300.f;
-	MoveToTarget(CombatTarget);
-
+	else if (IsOutsideAttackRadius())
+	{
+		ChaseTarget();
+	}
+	CombatTarget=EventInstigator->GetPawn();//0817 pawn是actor子类，可以将子类地址存储在父类指针中 后续在tick（）
 	return DamageAmount;
 }
 

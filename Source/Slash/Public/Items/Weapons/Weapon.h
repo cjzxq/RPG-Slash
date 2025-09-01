@@ -20,7 +20,11 @@ public:
 	AWeapon();
 
 	TArray<AActor*>IgnoreActors;//0808 记录所有被击中的角色
-	void Equip(USceneComponent* InParent,FName InSocketName,AActor*NewOwner,APawn*NewInstiGator);//为了伤害敌人增加了输入0812
+	void Equip(USceneComponent* InParent,FName InSocketName,AActor*NewOwner,APawn*NewInstiGator);
+	void DeactivateEmbers();
+	void DisableSphereCollision();
+	void PlayEquipSound();
+	//为了伤害敌人增加了输入0812
 
 	void AttachMeshToSocket(USceneComponent* InParent, const FName& InSocketName);
 
@@ -33,9 +37,17 @@ protected:
 
 		UFUNCTION()
 		void OnBoxOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+		bool ActorIsSameType(AActor* OtherActor);
+		void ExecuteGetHit(FHitResult& BoxHit);
 		UFUNCTION(BlueprintImplementableEvent)
 		void CreatFields(const FVector& FieldLoocation);//创建临时场，会从c++调用，传入我们想要创建场的位置，其余部分在蓝图处理，所以不需要在这里实现0809 weapon.cpp中调用
 private:
+
+	void BoxTrace(FHitResult&BoxHit);//没有用const,想填充BoxHit并在以后使用它
+	UPROPERTY(EditAnywhere, Category = "Weapon Properties")
+	FVector BoxTraceExtent = FVector(5.f);
+	UPROPERTY(EditAnywhere, Category = "Weapon Properties")
+	bool bShowBoxDebug=false;
 
 	UPROPERTY(EditAnywhere,Category="Weapon Properties")
     USoundBase* EquipSound; // 装备武器时播放的声音

@@ -5,11 +5,14 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "GroomComponent.h"
+#include "Components/AttributeComponents.h"
 #include "Items/Item.h"
 #include "Items/Weapons/Weapon.h"
 #include "Animation/AnimMontage.h"
-#include "Components/BoxComponent.h"
+#include "HUD/SlashHUD.h"
+#include "HUD/SlashOverlay.h"
 
 // Sets default values 类名::构造函数名()
 ASlashCharacter::ASlashCharacter()
@@ -22,6 +25,12 @@ ASlashCharacter::ASlashCharacter()
 	//访问角色移动组件
 	GetCharacterMovement()->bOrientRotationToMovement = true; // 角色移动时朝向移动方向
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 400.0f, 0.0f); // 设置角色的旋转速率
+
+	GetMesh()->SetCollisionObjectType(ECollisionChannel::ECC_WorldDynamic);
+	GetMesh()->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
+	GetMesh()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Visibility, ECollisionResponse::ECR_Block);
+	GetMesh()->SetCollisionResponseToChannel(ECollisionChannel::ECC_WorldDynamic, ECollisionResponse::ECR_Overlap);
+	GetMesh()->SetGenerateOverlapEvents(true);
 
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
@@ -50,7 +59,30 @@ ASlashCharacter::ASlashCharacter()
 void ASlashCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-	Tags.Add(FName("SlashCharacter"));//创建标签，被敌人查询0821 在Enemy.cpp中
+	Tags.Add(FName("EngageableTarget"));//创建标签，被敌人查询0821 在Enemy.cpp中
+	//以下设置窗口部件的值
+	InitializeSlashOverlay();
+}
+
+void ASlashCharacter::InitializeSlashOverlay()
+{
+	APlayerController* PlayerController = Cast<APlayerController>(GetController());//把AController转换为APlayerController
+	if (PlayerController)
+	{	//为了访问HUD  角色是由PLAYERCONTROLLER控制
+		ASlashHUD* SlashHUD = Cast<ASlashHUD>(PlayerController->GetHUD());
+		if (SlashHUD)
+		{
+		
+			SlashOverlay = SlashHUD->GetSlashOverlay();
+			if (SlashOverlay && Attributes)
+			{
+				SlashOverlay->SetHealthBarPercent(Attributes->GetHealthPercent());
+				SlashOverlay->SetStaminaBarPercent(1.f);
+				SlashOverlay->SetGold(0);
+				SlashOverlay->SetSouls(0);
+			}
+		}
+	}
 }
 
 // Called every frame
@@ -58,6 +90,31 @@ void ASlashCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+}
+
+void ASlashCharacter::GetHit_Implementation(const FVector& ImpactPoint,AActor* Hitter)
+{
+	Super::GetHit_Implementation(ImpactPoint, Hitter);
+	SetWeaponCollisionEnable(ECollisionEnabled::NoCollision);
+	if (Attributes && Attributes->GetHealthPercent()>0.f)
+	{
+		ActionState = EActionState::EAS_HitReaction;//角色受到攻击时，设置为HitReaction状态
+	}
+}
+
+float ASlashCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+{
+	HandleDamage(DamageAmount);
+	SetHUDHealth();//更新血条
+	return DamageAmount;
+}
+
+void ASlashCharacter::SetHUDHealth()
+{
+	if (SlashOverlay && Attributes)
+	{
+		SlashOverlay->SetHealthBarPercent(Attributes->GetHealthPercent());
+	}
 }
 
 // Called to bind functionality to input
@@ -68,11 +125,25 @@ void ASlashCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 	PlayerInputComponent->BindAxis(FName("MoveRightAndLeft"), this, &ASlashCharacter::MoveRightAndLeft);
 	PlayerInputComponent->BindAxis(FName("Turn"), this, &ASlashCharacter::Turn);
 	PlayerInputComponent->BindAxis(FName("LookUp"), this, &ASlashCharacter::LookUp);
-	//&ACharacter::Jump 和上面的不一样，这是直接调用库函数,所以没有写函数体
-	PlayerInputComponent->BindAction(FName("Jump"), IE_Pressed, this, &ACharacter::Jump);//绑定跳跃动作
-
+	//&ACharacter::Jump 和上面的不一样，这是直接调用库函数,所以没有写函数体,后面写了
+	//PlayerInputComponent->BindAction(FName("Jump"), IE_Pressed, this, &ACharacter::Jump);//绑定跳跃动作
+	PlayerInputComponent->BindAction(FName("Jump"), IE_Pressed, this, &ASlashCharacter::Jump);//绑定跳跃动作
 	PlayerInputComponent->BindAction(FName("Equip"), IE_Pressed, this, &ASlashCharacter::EkeyPressed);//
 	PlayerInputComponent->BindAction(FName("Attack"), IE_Pressed, this, &ASlashCharacter::Attack);
+}
+
+void ASlashCharacter::Jump()
+{
+	if (IsUnoccupied())
+	{
+		Super::Jump();
+	}
+
+}
+
+bool ASlashCharacter::IsUnoccupied()
+{
+	return ActionState == EActionState::EAS_Unoccupied;
 }
 
 // 需要绑定到轴映射
@@ -120,33 +191,21 @@ void ASlashCharacter::EkeyPressed()
 	AWeapon* OverlappingWeapon = Cast<AWeapon>(OverlappingItem);//转换
 	if (OverlappingWeapon)
 	{
-		//如果重叠的物品是武器，就装备武器 与武器重叠时按下E键装备武器 把武器的网格体附加到角色的右手插槽上
-		OverlappingWeapon->Equip(GetMesh(), FName("RightHandSocket"),this,this);//装备武器到右手插槽
-		//设置角色状态为装备了一把武器，让蓝图知道角色状态改变了，然后就可以改变姿势了 idle状态和拿着武器的动画不同
-		CharacterState = ECharacterState::ECS_EquippedOneHandWeapon; // 
-		OverlappingItem = nullptr; // 清除重叠的物品  没有这一行按下E键会没有反应
-		EquippedWeapon = OverlappingWeapon; // 设置当前装备的武器为重叠的武器
-
+		EquipWeapon(OverlappingWeapon);
 	}
 	else
 	{
 		if (CanDisarm())// 装备着武器并处于空闲状态
 		{
-			PlayEquipMontage(FName("Unequip")); // 播放把武器放到背后的蒙太奇动画
-			CharacterState = ECharacterState::ECS_Unequipped; // 设置角色状态为未装备
-			ActionState = EActionState::EAS_EquippingWeapon; // 
+			Disarm();
 		}
 		else if (CanArm())// 没有else,就不会播放武器拿到手里的动画
 		{
-			PlayEquipMontage(FName("Equip")); // 播放把武器从背上拿到手里的蒙太奇动画
-			CharacterState = ECharacterState::ECS_EquippedOneHandWeapon; // 设置角色状态为装备了一把武器
-			ActionState = EActionState::EAS_EquippingWeapon;
+			Arm();
 		}
 		
 	}
 }
-
-
 
 bool ASlashCharacter::CanDisarm()// 装备着武器并处于空闲状态
 {
@@ -163,6 +222,20 @@ bool ASlashCharacter::CanArm()
 
 void ASlashCharacter::Disarm()
 {
+	PlayEquipMontage(FName("Unequip")); // 播放把武器放到背后的蒙太奇动画
+	CharacterState = ECharacterState::ECS_Unequipped; // 设置角色状态为未装备
+	ActionState = EActionState::EAS_EquippingWeapon; // 
+}
+
+void ASlashCharacter::Arm()
+{
+	PlayEquipMontage(FName("Equip")); // 播放把武器从背上拿到手里的蒙太奇动画
+	CharacterState = ECharacterState::ECS_EquippedOneHandWeapon; // 设置角色状态为装备了一把武器
+	ActionState = EActionState::EAS_EquippingWeapon;
+}
+
+void ASlashCharacter::AttachWeaponToBack()
+{
 	if (EquippedWeapon)
 	{
 		EquippedWeapon->AttachMeshToSocket(GetMesh(), FName("SpineSocket")); // 将武器附加到背部插槽
@@ -170,7 +243,7 @@ void ASlashCharacter::Disarm()
 
 }
 
-void ASlashCharacter::Arm()
+void ASlashCharacter::AttachWeaponToHand()
 {
 	if (EquippedWeapon)
 	{
@@ -181,6 +254,11 @@ void ASlashCharacter::Arm()
 void ASlashCharacter::FinishEquipping()
 {
 	ActionState = EActionState::EAS_Unoccupied; // 设置动作状态为空闲
+}
+
+void ASlashCharacter::HitRecatEnd()
+{
+	ActionState = EActionState::EAS_Unoccupied;//命中受击打动画完成时重置状态
 }
 
 
@@ -205,7 +283,7 @@ void ASlashCharacter::LookUp(float Value)
 //攻击函数，绑定到鼠标左键按下事件 当我们需要访问动画实例时，可以通过角色网格体来获取，
 void ASlashCharacter::Attack()
 {
-
+	Super::Attack();
 	if (CanAttack())
 	{
 		PlayAttackMontage();
@@ -220,11 +298,18 @@ bool ASlashCharacter::CanAttack()// 不在攻击状态且装备了武器才能攻击
 		CharacterState != ECharacterState::ECS_Unequipped;
 }
 
+void ASlashCharacter::Die()
+{
+	Super::Die();
+	ActionState = EActionState::EAS_Dead;
+	DisableMeshCollision();
+}
 
 
-
+/*
 void ASlashCharacter::PlayAttackMontage()
 {
+	Super::PlayAttackMontage();
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();//获取角色网格体的动画实例 获取角色 Skeletal Mesh 的动画实例（UAnimInstance）。
 	if (AnimInstance && AttackMontage)//AttackMontage 是提前在类中设置的攻击动画资源（类型是 UAnimMontage*）
 	{
@@ -247,7 +332,7 @@ void ASlashCharacter::PlayAttackMontage()
 		AnimInstance->Montage_JumpToSection(SectionName, AttackMontage);//跳转到攻击动画的某一节,AttackMontage要在蓝图中设置
 	}
 }
-
+*/
 void ASlashCharacter::PlayEquipMontage(const FName& SectionName)//用constFName& SectionName比FName SectionName好
 {
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
@@ -258,6 +343,16 @@ void ASlashCharacter::PlayEquipMontage(const FName& SectionName)//用constFName& 
 	}
 }
 
+
+void ASlashCharacter::EquipWeapon(AWeapon*Weapon)
+{
+	//如果重叠的物品是武器，就装备武器 与武器重叠时按下E键装备武器 把武器的网格体附加到角色的右手插槽上
+	Weapon->Equip(GetMesh(), FName("RightHandSocket"), this, this);//装备武器到右手插槽
+	//设置角色状态为装备了一把武器，让蓝图知道角色状态改变了，然后就可以改变姿势了 idle状态和拿着武器的动画不同
+	CharacterState = ECharacterState::ECS_EquippedOneHandWeapon; // 
+	OverlappingItem = nullptr; // 清除重叠的物品  没有这一行按下E键会没有反应
+	EquippedWeapon = Weapon; // 设置当前装备的武器为重叠的武器
+}
 
 //只需将动作状态设置为空闲状态即可 在蓝图中调用这个函数
 void ASlashCharacter::AttackEnd()

@@ -42,7 +42,7 @@ void ABreakableActor::Tick(float DeltaTime)
 
 }
 
-void ABreakableActor::GetHit_Implementation(const FVector& ImpactPoint)
+void ABreakableActor::GetHit_Implementation(const FVector& ImpactPoint, AActor* Hitter)
 {
 	//在这里生成一个角色并获取击中的实例 打碎物体，出来宝藏   目前还有点问题，就是打了一个罐子把旁边的罐子的位置移动了之后，旁边的罐子没有碰撞了，还有就是打破罐子，宝藏出来在其它地方了
 	//也会多次调用 出现死循环    解决方法：加一个bool变量，打碎了就为真
