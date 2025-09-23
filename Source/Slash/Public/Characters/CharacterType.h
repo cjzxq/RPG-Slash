@@ -17,6 +17,7 @@ enum class EActionState : uint8
 	EAS_HitReaction UMETA(DisplayName = "HitReaction"),//用于角色被击打时不能攻击
 	EAS_Attacking UMETA(DisplayName = "Attacking"),//攻击状态，正在攻击，不能执行其他动作
 	EAS_EquippingWeapon UMETA(DisplayName = "Equipping Weapon"),//装备状态，正在装备武器
+	EAS_Dodge UMETA(DisplayName = "Dodge"),//闪避
 	EAS_Dead UMETA(DisplayName = "Dead")
 };
 //死亡姿势,要使用以下枚举，先在Enmy.h中加上这个头文件0816

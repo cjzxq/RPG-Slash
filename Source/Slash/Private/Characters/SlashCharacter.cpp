@@ -13,10 +13,13 @@
 #include "Animation/AnimMontage.h"
 #include "HUD/SlashHUD.h"
 #include "HUD/SlashOverlay.h"
+#include "Items/Soul.h"
+#include "Items/Treasure.h"
 
 // Sets default values 类名::构造函数名()
 ASlashCharacter::ASlashCharacter()
 {
+	PrimaryActorTick.bCanEverTick = true;//设为true。为了每秒显示恢复的体力
 	// 以下三个在蓝图details中也可以设置，在c++中设置可以更方便地控制角色
 	bUseControllerRotationPitch = false; // 禁用控制器的俯仰旋转
 	bUseControllerRotationYaw = false; // 启用控制器的偏航旋转
@@ -88,8 +91,12 @@ void ASlashCharacter::InitializeSlashOverlay()
 // Called every frame
 void ASlashCharacter::Tick(float DeltaTime)
 {
-	Super::Tick(DeltaTime);
-
+	//Super::Tick(DeltaTime);
+	if (Attributes && SlashOverlay)
+	{
+		Attributes->RegeneStamina(DeltaTime);
+		SlashOverlay->SetStaminaBarPercent(Attributes->GetStaminaPercent());
+	}
 }
 
 void ASlashCharacter::GetHit_Implementation(const FVector& ImpactPoint,AActor* Hitter)
@@ -130,6 +137,7 @@ void ASlashCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 	PlayerInputComponent->BindAction(FName("Jump"), IE_Pressed, this, &ASlashCharacter::Jump);//绑定跳跃动作
 	PlayerInputComponent->BindAction(FName("Equip"), IE_Pressed, this, &ASlashCharacter::EkeyPressed);//
 	PlayerInputComponent->BindAction(FName("Attack"), IE_Pressed, this, &ASlashCharacter::Attack);
+	PlayerInputComponent->BindAction(FName("Dodge"), IE_Pressed, this, &ASlashCharacter::Dodge);
 }
 
 void ASlashCharacter::Jump()
@@ -139,6 +147,29 @@ void ASlashCharacter::Jump()
 		Super::Jump();
 	}
 
+}
+
+void ASlashCharacter::SetOverlappingItem(AItem* Item)
+{
+	OverlappingItem = Item;
+}
+
+void ASlashCharacter::AddSouls(ASoul* Soul)
+{
+	if (Attributes && SlashOverlay)
+	{
+		Attributes->AddSouls(Soul->GetSouls());
+		SlashOverlay->SetSouls(Attributes->GetSouls());
+	}
+}
+
+void ASlashCharacter::AddGold(ATreasure* Treasure)
+{
+	if (Attributes && SlashOverlay)
+	{
+		Attributes->AddGold(Treasure->GetGold());
+		SlashOverlay->SetGold(Attributes->GetGold());
+	}
 }
 
 bool ASlashCharacter::IsUnoccupied()
@@ -191,6 +222,10 @@ void ASlashCharacter::EkeyPressed()
 	AWeapon* OverlappingWeapon = Cast<AWeapon>(OverlappingItem);//转换
 	if (OverlappingWeapon)
 	{
+		if (EquippedWeapon)
+		{
+			EquippedWeapon->Destroy();
+		}
 		EquipWeapon(OverlappingWeapon);
 	}
 	else
@@ -292,15 +327,40 @@ void ASlashCharacter::Attack()
 
 }
 
+void ASlashCharacter::Dodge()
+{
+	//不能在其它状态下闪避
+	if (Isoccupied() || !HasEnoughStamina()) return;//有一个条件不满足，就不能闪避
+	PlayDodgeMontage();
+	//这样就一直是闪避状态，可以制作一个函数，从动画蓝图中用动画通知来调用 如果不做动画通知，闪避一次就不能作其它动作了
+	ActionState = EActionState::EAS_Dodge;
+	if (Attributes && SlashOverlay)
+	{
+		Attributes->UseStamina(Attributes->GetDodgeCost());
+		SlashOverlay->SetStaminaBarPercent(Attributes->GetStaminaPercent());//显示消耗体力时
+	}
+
+}
+
+bool ASlashCharacter::HasEnoughStamina()
+{
+	return Attributes && Attributes->GetStamina() > Attributes->GetDodgeCost();
+}
+
+bool ASlashCharacter::Isoccupied()
+{
+	return ActionState != EActionState::EAS_Unoccupied;
+}
+
 bool ASlashCharacter::CanAttack()// 不在攻击状态且装备了武器才能攻击
 {
 	return ActionState == EActionState::EAS_Unoccupied &&
 		CharacterState != ECharacterState::ECS_Unequipped;
 }
 
-void ASlashCharacter::Die()
+void ASlashCharacter::Die_Implementation()
 {
-	Super::Die();
+	Super::Die_Implementation();
 	ActionState = EActionState::EAS_Dead;
 	DisableMeshCollision();
 }
@@ -358,6 +418,12 @@ void ASlashCharacter::EquipWeapon(AWeapon*Weapon)
 void ASlashCharacter::AttackEnd()
 {
 	ActionState = EActionState::EAS_Unoccupied; // 设置动作状态为空闲
+}
+
+void ASlashCharacter::DodgeEnd()
+{
+	Super::DodgeEnd();
+	ActionState = EActionState::EAS_Unoccupied;
 }
 
 

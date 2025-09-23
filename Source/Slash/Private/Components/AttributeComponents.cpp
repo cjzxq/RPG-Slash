@@ -8,7 +8,7 @@ UAttributeComponents::UAttributeComponents()
 {
 	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
 	// off to improve performance if you don't need them.
-	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bCanEverTick = true;//暂时不记时间，改为false
 
 	// ...
 }
@@ -26,9 +26,20 @@ void UAttributeComponents::ReciveDamage(float Damage)
 	Health = FMath::Clamp(Health-Damage,0.f,MaxHealth);//这个函数不会让Health<0
 }
 
+void UAttributeComponents::UseStamina(float StaminaCost)
+{
+    //剩下的体力
+	Stamina = FMath::Clamp(Stamina - StaminaCost, 0.f, MaxStamina);
+}
+
 float UAttributeComponents::GetHealthPercent()
 {
 	return Health / MaxHealth;
+}
+
+float UAttributeComponents::GetStaminaPercent()
+{
+	return Stamina/ MaxStamina;
 }
 
 bool UAttributeComponents::IsAlive()//0816
@@ -36,10 +47,25 @@ bool UAttributeComponents::IsAlive()//0816
 	return Health > 0.f;
 }
 
+void UAttributeComponents::AddGold(int32 AmountOfGold)
+{
+	Gold += AmountOfGold;
+}
+
+void UAttributeComponents::AddSouls(int32 NumberOfSouls)
+{
+	Souls += NumberOfSouls;
+}
+
 
 // Called every frame
 void UAttributeComponents::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+}
+
+void UAttributeComponents::RegeneStamina(float DeltaTime)
+{
+	Stamina = FMath::Clamp(Stamina + StaminaRegenRate * DeltaTime, 0, MaxStamina);//每秒恢复体力0902
 }
 

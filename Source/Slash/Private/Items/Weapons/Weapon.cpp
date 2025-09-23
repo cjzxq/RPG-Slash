@@ -55,9 +55,9 @@ void AWeapon::Equip(USceneComponent* InParent, FName InSocketName, AActor* NewOw
 
 void AWeapon::DeactivateEmbers()
 {
-	if (EmbersEffect)
+	if (ItemEffect)
 	{
-		EmbersEffect->Deactivate();//停用火花这个特效
+		ItemEffect->Deactivate();//停用火花这个特效
 	}
 }
 
@@ -159,7 +159,7 @@ void AWeapon::BoxTrace(FHitResult& BoxHit)
 	//存一个被击中的角色列表，防止再次击中它们，
 	TArray<AActor*>ActorsToIgnore; //创建一个忽略的Actor数组  TArray一个容器，
 	ActorsToIgnore.Add(this); //将当前武器添加到忽略的Actor数组中，这样就不会检测到自己 不会击中武器本身
-
+	ActorsToIgnore.Add(GetOwner());//武器的持有者也加入，raptor不会自己攻击到自己0903
 	for (AActor* Actor : IgnoreActors)//可以遍历忽略的角色， 
 	{
 		ActorsToIgnore.AddUnique(Actor);//没碰到一个角色，就不会对那个角色进行box trace了0808

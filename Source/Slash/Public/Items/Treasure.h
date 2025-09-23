@@ -16,10 +16,10 @@ class SLASH_API ATreasure : public AItem
 protected:
 	virtual void OnSphereOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult) override;
 private:
-	UPROPERTY(EditAnywhere, Category = "Sounds")
-	USoundBase* PickupSound;//捡起物品声音  PickupSound在蓝图中设置，0810
 
 	UPROPERTY(EditAnywhere, Category = "Treasure Properties")
 	int32 Gold;
-
+public:
+	//FORCEINLINE int32 GetGold() const { return Gold; }//为什么在AttributeComponents.h下面也写了这个函数
+	FORCEINLINE int32 GetGold() const { return Gold; }
 };

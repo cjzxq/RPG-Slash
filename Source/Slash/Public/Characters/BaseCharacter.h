@@ -41,6 +41,7 @@ protected:
 	 void PlayHitReactMontage(const FName& SectionName);
 	 virtual int32 PlayAttackMontage();
 	 virtual int32 PlayDeathMontage();
+	 virtual void PlayDodgeMontage();
 	 void StopAttackMontage();
 	 UFUNCTION(BlueprintCallable)//蓝图可调用
 	 FVector GetTranslationWarpTarget();
@@ -53,7 +54,11 @@ protected:
 	 void DisableMeshCollision();
 	 UFUNCTION(BlueprintCallable)//蓝图可调用
 	 virtual void AttackEnd();//攻击结束函数
-	 virtual void Die();
+	 UFUNCTION(BlueprintCallable)//蓝图可调用
+	 virtual void DodgeEnd();//
+	 //// 用BlueprintNativeEvent，给c++函数赋予蓝图功能 原来是有virtual的，因为要用BlueprintNativeEvent所以去掉了 为了让insect死后可以掉在地上
+	 UFUNCTION(BlueprintNativeEvent)
+	 void Die();
 	//组件
 	UPROPERTY(VisibleAnywhere)
 	UAttributeComponents* Attributes;//用了一个未定义的类型，需要前向声明0812
@@ -85,6 +90,8 @@ private:
 	UAnimMontage* HitReactMontage;//攻击动作蒙太奇0808
 	UPROPERTY(EditDefaultsOnly, Category = "Combat")
 	UAnimMontage* DeathMontage;//死亡蒙太奇动画0816
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	UAnimMontage* DodgeMontage;//死亡蒙太奇动画0902
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	TArray<FName>AttackMontageSections;
 

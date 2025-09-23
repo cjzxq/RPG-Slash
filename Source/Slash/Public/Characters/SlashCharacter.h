@@ -5,12 +5,15 @@
 #include "CoreMinimal.h"
 #include "BaseCharacter.h"//0823
 #include "CharacterType.h"//自己创建的头文件，包含了角色类型枚举，比放一个巨大的头文件要好很多
+#include "Interfaces/PickupInterface.h"
 #include "SlashCharacter.generated.h"
 
 class USpringArmComponent;//前向声明，弹簧臂组件，用于摄像机跟随物体
 class UCameraComponent;//前向声明，摄像机组件，用于显示的视角
 class UGroomComponent;//前向声明，角色的毛发
 class AItem;//前向声明，物品类
+class ASoul;
+class ATreasure;
 class UAnimMontage;//前向声明，动画蒙太奇类
 class AWeapon;//前向声明，武器类
 class USlashOverlay;
@@ -27,7 +30,7 @@ class USlashOverlay;
 
 
 UCLASS()
-class SLASH_API ASlashCharacter : public ABaseCharacter
+class SLASH_API ASlashCharacter : public ABaseCharacter,public IPickupInterface//接口
 {
 	GENERATED_BODY()
 
@@ -42,6 +45,9 @@ public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	//因为角色血条归0后不能移动却可以跳跃，因为跳跃用的是库函数，没有设置状态
 	virtual void Jump() override;
+	virtual void SetOverlappingItem(AItem* Item) override;
+	virtual void AddSouls(ASoul* Soul) override;
+	virtual void AddGold(ATreasure* Treasure)override;
 
 
 	//UFUNCTION(BlueprintCallable)
@@ -57,13 +63,18 @@ protected:
 	void MoveRightAndLeft(float Value);//向左和向右移动 轴映射，需要浮点型输入
 	void EkeyPressed();//E键按下事件，动作映射，不需要浮点型输入，函数是一次性的，按下E键就会调用一次这个函数
 	virtual void Attack() override;//攻击函数，绑定到鼠标左键按下事件
+	void Dodge();
+	bool HasEnoughStamina();
+	bool Isoccupied();
+
 
 	// 播放蒙太奇动画
 	//UFUNCTION(BlueprintCallable)//蓝图可调用因为下面个函数是子类重写的，父类虚函数有UFUNCTION(BlueprintCallable)，所以这里不用
 	void EquipWeapon(AWeapon* Weapon);
 	virtual void AttackEnd() override;//攻击结束函数
+	virtual void DodgeEnd() override;
 	virtual bool CanAttack() override;//是否可以攻击的函数，判断角色状态和动作状态
-	virtual void Die() override;
+	virtual void Die_Implementation() override;
 
 	void PlayEquipMontage(const FName& SectionName);//播放装备武器的蒙太奇动画
 	bool CanDisarm();//是否可以卸下武器的函数，把武器放到背上
@@ -117,7 +128,8 @@ private:
 
 public:
 	//设置重叠的物品 内敛函数效率更高，每次调用函数，程序执行都要跳转到函数代码定义的地方，但只用于简单小的函数，通常是获取函数和设置函数 FORCEINLINE强制内敛
-	FORCEINLINE void SetOverlappingItem(AItem* Item) { OverlappingItem = Item; } 
+	// 下面这个函数被移除了，因为用了接口，有了SetOverlappingItem(class AItem* Item); 然后再上方实现接口并重写
+	//FORCEINLINE void SetOverlappingItem(AItem* Item) { OverlappingItem = Item; } 
 	//
 	FORCEINLINE ECharacterState GetCharacterState() const { return CharacterState; } //获取角色状态
 	FORCEINLINE EActionState GetActionState() const { return ActionState; }//为了在slashaniminstance中设置状态

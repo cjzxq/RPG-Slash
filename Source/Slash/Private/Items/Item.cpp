@@ -4,8 +4,11 @@
 #include "Items/Item.h"
 #include "Slash/DebugMacors.h"
 #include "Components/SphereComponent.h"//包含球形碰撞组件的头文件
-#include "Characters/SlashCharacter.h"//包含角色类的头文件
+//#include "Characters/SlashCharacter.h"//包含角色类的头文件 用了接口，不需要这个了
+#include "Interfaces/PickupInterface.h"
 #include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
+#include "Kismet/GameplayStatics.h"
 
  
 // Sets default values
@@ -27,8 +30,8 @@ AItem::AItem()
 	Sphere = CreateDefaultSubobject<USphereComponent>(TEXT("Sphere"));//创建一个球形碰撞组件子对象，名称为Sphere
 	Sphere->SetupAttachment(GetRootComponent());//将Sphere组件附加到根组件上，这样它就会成为ItemMesh的子组件，在蓝图中可以看到Sphere组件是ItemMesh的子组件
 
-	EmbersEffect = CreateDefaultSubobject<UNiagaraComponent>(TEXT("Embers"));
-	EmbersEffect->SetupAttachment(GetRootComponent());
+	ItemEffect = CreateDefaultSubobject<UNiagaraComponent>(TEXT("Embers"));
+	ItemEffect->SetupAttachment(GetRootComponent());
 }
 
 // Called when the game starts or when spawned
@@ -97,14 +100,14 @@ void AItem::OnSphereOverlap(UPrimitiveComponent* OverlappedComponent, AActor* Ot
 	//	//输出日志，显示其他物体的名称
 	//	UE_LOG(LogTemp, Warning, TEXT("Overlapped with: %s"), *OtherActorName);
 	//}
-
-	ASlashCharacter* SlashCharacter = Cast<ASlashCharacter>(OtherActor);//将OtherActor转换为ASlashCharacter类型 人物靠近武器， 人物就是OtherActor
-	if (SlashCharacter)
+	
+	//不希望Item了解SlashCharacter类，可以使用接口
+	IPickupInterface* PickupInterface = Cast<IPickupInterface>(OtherActor);//将OtherActor转换为ASlashCharacter类型 人物靠近武器， 人物就是OtherActor
+	if (PickupInterface)
 	{
 		//如果转换成功，说明OtherActor是ASlashCharacter类型的角色，那么就调用角色的SetOverlappingItem函数，将当前物体（this）传递给角色
-		SlashCharacter->SetOverlappingItem(this);//需要传入一个物品指针，重叠的物品就是当前物体（this），this指向当前AItem对象
+		PickupInterface->SetOverlappingItem(this);//需要传入一个物品指针，重叠的物品就是当前物体（this），this指向当前AItem对象
 	}
-
 }
 
 void AItem::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
@@ -119,11 +122,36 @@ void AItem::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor*
 	//	UE_LOG(LogTemp, Warning, TEXT("End Overlap with: %s"), *OtherActorName);
 	//}
 
-	ASlashCharacter* SlashCharacter = Cast<ASlashCharacter>(OtherActor);//将OtherActor转换为ASlashCharacter类型 人物靠近武器， 人物就是OtherActor
-	if (SlashCharacter)
+	IPickupInterface* PickupInterface = Cast<IPickupInterface>(OtherActor);//将OtherActor转换为ASlashCharacter类型 人物靠近武器， 人物就是OtherActor
+	if (PickupInterface)
 	{
-		//人没有到武器范围时，传入一个空指针
-		SlashCharacter->SetOverlappingItem(nullptr);//
+		//如果转换成功，说明OtherActor是ASlashCharacter类型的角色，那么就调用角色的SetOverlappingItem函数，将当前物体（this）传递给角色
+		PickupInterface->SetOverlappingItem(nullptr);//需要传入一个物品指针，重叠的物品就是当前物体（this），this指向当前AItem对象
+	}
+}
+
+void AItem::SpawnPickupSystem()
+{
+	//重叠时，出现特效 生成它，需要NiagaraFunctionLibrary.h
+	if (PickupEffect)
+	{
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+			this,//作为worldcontextobject
+			PickupEffect,
+			GetActorLocation()
+		);
+	}
+}
+
+void AItem::SpawnPickupSound()
+{
+	if (PickupSound)
+	{
+		UGameplayStatics::SpawnSoundAtLocation(
+			this,
+			PickupSound,
+			GetActorLocation()
+		);
 	}
 }
 

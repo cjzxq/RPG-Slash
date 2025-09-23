@@ -7,6 +7,7 @@
 #include "Item.generated.h"//包含使我们类参与反射系统所需要的代码
 
 class USphereComponent; //前向声明，
+class UNiagaraSystem;
 
 enum class EItemState : uint8//枚举类型，表示物品状态 比如武器该不该悬浮等
 {
@@ -51,7 +52,8 @@ protected:
 	UFUNCTION()//为了在武器类中重写这些函数，把void OnSphereOverlap设置为虚函数
 	virtual void OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 	//void on(FComponentEndOverlapSignature, UPrimitiveComponent, OnComponentEndOverlap, UPrimitiveComponent*, OverlappedComponent, AActor*, OtherActor, UPrimitiveComponent*, OtherComp, int32, OtherBodyIndex);)
-
+	virtual void SpawnPickupSystem();
+	virtual void SpawnPickupSound();
 	UPROPERTY(VisibleAnywhere,BlueprintReadOnly);//暴露给蓝图，为了在事件图表中看见他，加了BlueprintReadOnly
 	UStaticMeshComponent* ItemMesh;
 
@@ -62,7 +64,9 @@ protected:
 	//按E键会发出拿到剑时的声音，需要在装备武器后关闭它的碰撞检测，现在要想访问 Sphere并且从子类中更改它的属性，本来是私有的，将其移到保护部分
 
 	UPROPERTY(EditAnywhere);
-	class UNiagaraComponent* EmbersEffect;//在cpp中构建
+	class UNiagaraComponent* ItemEffect;//在cpp中构建
+	UPROPERTY(EditAnywhere);
+	USoundBase* PickupSound;//为什么这个不需要前向声明呢？
 
 private:
 	//可以在这里添加私有成员变量和函数
@@ -73,6 +77,8 @@ private:
 
 	UPROPERTY(VisibleAnywhere,BlueprintReadOnly,meta=(AllowprivateAccess = "true"));
 	float RunningTime;//运行时间
+	UPROPERTY(EditAnywhere)
+	UNiagaraSystem* PickupEffect;//UE中先做NS_SoulPickup,然后通过这行代码，BP_Soul中会有PickupEffect选项
 
 	//UPROPERTY(VisibleAnywhere);//暴露给蓝图，蓝图可见的静态网格组件，但在蓝图事件中看不见，如果想在事件图表中看见他，用BlueprintReadOnly，
 	//UStaticMeshComponent* ItemMesh;//物品的静态网格组件,创建了一个空指针，指向一个静态网格组件，接下来创建一个新的静态网格组件子对象，在cpp的构造函数中完成

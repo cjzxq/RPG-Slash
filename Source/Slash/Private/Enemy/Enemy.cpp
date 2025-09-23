@@ -13,6 +13,7 @@
 #include "NavigationPath.h"
 #include "Navigation/PathFollowingComponent.h" //
 #include "Items/Weapons/Weapon.h"
+#include "Items//Soul.h"
 
 // Sets default values
 AEnemy::AEnemy()
@@ -171,7 +172,7 @@ void AEnemy::SpawnDefaultWeapon()
 	if (World && WeaponClass)
 	{
 		AWeapon* DefalultWeapon = World->SpawnActor<AWeapon>(WeaponClass);
-		DefalultWeapon->Equip(GetMesh(), FName("RightHandSocket"), this, this);//装备武器到右手插槽
+		DefalultWeapon->Equip(GetMesh(), FName("WeaponSocket"), this, this);//装备武器到右手插槽
 		EquippedWeapon = DefalultWeapon;
 	}
 }
@@ -184,9 +185,9 @@ void AEnemy::InitializeEnemy()
 	//0823 生成武器
 	SpawnDefaultWeapon();
 }
-void AEnemy::Die()
+void AEnemy::Die_Implementation()
 {
-	Super::Die();
+	Super::Die_Implementation();
 	EnemyState = EEnemyState::EES_Dead;
 	ClearAttackTimer();
 	HideHealthBar();
@@ -198,6 +199,25 @@ void AEnemy::Die()
 	GetCharacterMovement()->bOrientRotationToMovement = false;
 	//解决敌人死时武器还可以伤害到角色 当敌人死亡时，关闭武器碰撞即可
 	SetWeaponCollisionEnable(ECollisionEnabled::NoCollision);
+	SpawnSoul();
+}
+
+void AEnemy::SpawnSoul()
+{
+	//敌人死亡生成灵魂
+	UWorld* World = GetWorld();
+	if (World && SoulClass && Attributes)
+	{
+		const FVector SpawnLocation = GetActorLocation() + FVector(0.f, 0.f, 125.f);
+		ASoul* SpawnSoul=World->SpawnActor<ASoul>(SoulClass, SpawnLocation, GetActorRotation());//在敌人上方生成灵魂 
+		if (SpawnSoul)
+		{
+			//生成它之后，把它的灵魂值设为属性组件中的灵魂值
+			SpawnSoul->SetSouls(Attributes->GetSouls());//没理解
+			SpawnSoul->SetOwner(this);//灵魂的所有者，主要为了掉落时忽略掉同类型的人
+		}
+
+	}
 }
 
 bool AEnemy::InTargetRange(AActor* Target, double Radius)
@@ -215,9 +235,8 @@ void AEnemy::MoveToTarget(AActor* Target)
 	FAIMoveRequest MoveRequest;//创建一个移动请求
 	//设置移动请求参数
 	MoveRequest.SetGoalActor(Target);   //
-	MoveRequest.SetAcceptanceRadius(60.f);
+	MoveRequest.SetAcceptanceRadius(AcceptanceRadius);
 	EnemyContorller->MoveTo(MoveRequest);
-
 }
 
 //为了让这个函数能被调用，需要把它绑定,会在BeginPlay中完成操作 0821
@@ -249,6 +268,13 @@ AActor* AEnemy::ChoosePatrolTarget()
 			ValidTargets.AddUnique(target);
 		}
 	}
+
+	// 如果所有目标都已经是当前目标，允许重新选择全部目标 调试
+	if (ValidTargets.Num() == 0)
+	{
+		ValidTargets = PatrolTargets;
+	}
+
 	//要从巡逻目标数组中选一个目标，随机挑选一个
 	const int32 NumPatrolTargets = ValidTargets.Num();//获取巡逻目标数量
 	if (NumPatrolTargets > 0)
@@ -397,6 +423,10 @@ void AEnemy::GetHit_Implementation(const FVector& ImpactPoint, AActor* Hitter)
 	ClearAttackTimer();//敌人在播放受击动画时不应该能攻击
 	SetWeaponCollisionEnable(ECollisionEnabled::NoCollision);
 	StopAttackMontage();
+	if (IsInsideAttackRadius())
+	{
+		if(!IsDead()) StartAttackTimer();
+	}
 }
 
 //伤害敌人 weapon.cpp挥剑的时候

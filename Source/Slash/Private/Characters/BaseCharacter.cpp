@@ -74,6 +74,11 @@ int32 ABaseCharacter::PlayDeathMontage()
 	return Selection;
 }
 
+void ABaseCharacter::PlayDodgeMontage()
+{
+	PlayMontageSection(DodgeMontage, FName("Default"));
+}
+
 void ABaseCharacter::StopAttackMontage()
 {
 	//获取动画实例
@@ -97,6 +102,7 @@ FVector ABaseCharacter::GetTranslationWarpTarget()
 
 FVector ABaseCharacter::GetRotationWarpTarget()
 {
+	if (CombatTarget == nullptr) 	return FVector();
 	if (CombatTarget)
 	{
 		return CombatTarget->GetActorLocation();
@@ -240,7 +246,12 @@ void ABaseCharacter::AttackEnd()
 	
 }
 
-void ABaseCharacter::Die()
+void ABaseCharacter::DodgeEnd()
+{
+}
+
+//原来是虚函数重写，用die(),不是虚函数了，改为Die_Implementation()
+void ABaseCharacter::Die_Implementation()
 {
 	//为了避免任务死后攻击的人还在继续攻击，添加游戏标签
 	Tags.Add(FName("Dead"));

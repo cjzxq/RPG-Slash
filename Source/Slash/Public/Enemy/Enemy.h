@@ -35,7 +35,9 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 	//<ABaseCharacter>
-	virtual void Die() override;//0816
+	virtual void Die_Implementation() override;
+	void SpawnSoul();
+	//0816
 	//<ABaseCharacter>
 	//然后用枚举名字创建变量0816
 	virtual void Attack() override;
@@ -43,7 +45,7 @@ protected:
 	virtual void HandleDamage(float DamageAmount) override;
 	virtual void AttackEnd() override;
 
-	UPROPERTY(BlueprintReadOnly)
+	UPROPERTY(BlueprintReadOnly,VisibleAnywhere)
 	EEnemyState EnemyState = EEnemyState::EES_Patrolling;//默认为巡逻状态
 
 
@@ -79,14 +81,16 @@ private:
 	UHealthBarComponent* HealthBarWidget;
 	UPROPERTY(VisibleAnywhere)
 	UPawnSensingComponent* PawnSensing;//需要创建默认子类对象构建它
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "Combat")
 	TSubclassOf<class AWeapon>WeaponClass;//用这个来生成武器，蓝图添加变量
 
 	//蒙太奇动画，变量
-	UPROPERTY(EditAnywhere)//0817
+	UPROPERTY(EditAnywhere,Category = "Combat")//0817
 	double CombatRadius = 500.f;
-	UPROPERTY(EditAnywhere)//0821
+	UPROPERTY(EditAnywhere, Category = "Combat")//0821
 	double AttackRadius = 150.f;//如果在125距离内，敌人开始攻击
+	UPROPERTY(EditAnywhere, Category = "Combat")//0821
+	double AcceptanceRadius = 50.f;//不同敌人，攻击距离不一样
 
 	//Navigation敌人巡航
 	UPROPERTY()
@@ -117,4 +121,6 @@ private:
 	float ChasingSpeed = 300.f;
 	UPROPERTY(EditAnywhere, Category = "Combat")
 	float DeathLifeSpan = 3.f;
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	TSubclassOf<class ASoul>SoulClass;//敌人死亡生成灵魂 特定的敌人会有特定的灵魂数量 在蓝图中把class ASoul设置BP_Soul
 };
